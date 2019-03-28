@@ -40,7 +40,7 @@ public class User {
      * @params inString The new name that is over-riding the old one
      */
     void setLastName(String inString){
-        firstName = inString;
+        lastName = inString;
     }
     
     /**

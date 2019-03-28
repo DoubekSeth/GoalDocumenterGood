@@ -20,10 +20,15 @@ import com.google.api.services.sheets.v4.SheetsScopes;
 import com.google.api.services.sheets.v4.model.ValueRange;
 import com.google.api.services.sheets.v4.model.AppendValuesResponse;
 import com.google.api.services.sheets.v4.model.ValueRange;
+import com.google.api.services.sheets.v4.model.ClearValuesRequest;
+import com.google.api.services.sheets.v4.model.ClearValuesResponse;
+import com.google.api.services.sheets.v4.model.BatchClearValuesRequest;
+import com.google.api.services.sheets.v4.model.BatchClearValuesResponse;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Calendar;
+import java.text.SimpleDateFormat;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -31,6 +36,7 @@ import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -51,10 +57,13 @@ public class Menu extends javax.swing.JFrame {
     RepeatedGoal testRepeatingGoal = new RepeatedGoal("For Checking Only", currentDate, currentDate);
     SingleGoal testSingleGoal = new SingleGoal("For Checking Only", currentDate);
     int currentGoal = 0;
+    SimpleDateFormat df = new SimpleDateFormat("dd/MM/yyyy");
+    static boolean didUserUpdate = false;
+    
     private static final String APPLICATION_NAME = "Goal Documenter";
     private static final JsonFactory JSON_FACTORY = JacksonFactory.getDefaultInstance();
     private static final String TOKENS_DIRECTORY_PATH = "tokens";
-    private static final List<String> SCOPES = Collections.singletonList(SheetsScopes.SPREADSHEETS_READONLY);
+    private static final List<String> SCOPES = Collections.singletonList(SheetsScopes.SPREADSHEETS);
     private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
     final String spreadsheetId = "1-24ey9OtAbMmpGdGnsoRhgc9Sg-bnTnNCIRwfr0M4_I";
     static Sheets service;
@@ -1147,6 +1156,9 @@ public class Menu extends javax.swing.JFrame {
             public void windowActivated(java.awt.event.WindowEvent evt) {
                 formWindowActivated(evt);
             }
+            public void windowClosing(java.awt.event.WindowEvent evt) {
+                formWindowClosing(evt);
+            }
         });
 
         title.setFont(new java.awt.Font("Tahoma", 0, 25)); // NOI18N
@@ -1612,8 +1624,7 @@ public class Menu extends javax.swing.JFrame {
                 Sheets.Spreadsheets.Values.Append request = service.spreadsheets().values().append(spreadsheetId, "A3:N", requestBody);
                 request.setValueInputOption("RAW");
                 request.setInsertDataOption("INSERT_ROWS");
-                AppendValuesResponse response = request.execute();
-                System.out.println("I did the thing");
+                request.execute();
             } catch(Exception e) {
                 System.out.println(e);
         }
@@ -1634,22 +1645,21 @@ public class Menu extends javax.swing.JFrame {
         try {
             goals.get(currentGoal).documentGoal(repeatingGoalReflection.getText(), repeatingGoalStepsTaken.getText(), getRepeatingGoalLearningOutcomes(), Float.parseFloat(repeatingGoalCreativeHours.getText()), Float.parseFloat(repeatingGoalActiveHours.getText()), Float.parseFloat(repeatingGoalServiceHours.getText()));
             resetGoalField(currentGoal);
-            
-            try {
-                ValueRange requestBody = new ValueRange().setValues(toSheets(goals.get(currentGoal), currentUser));
-                Sheets.Spreadsheets.Values.Append request = service.spreadsheets().values().append(spreadsheetId, "A3:N3", requestBody);
-                request.setValueInputOption("RAW");
-                request.setInsertDataOption("INSERT_ROWS");
-                AppendValuesResponse response = request.execute();
-            } catch(Exception e) {
-
-            }
-            
-            goals.remove(currentGoal);
-            repeatingGoalDialog.setVisible(false);
         } catch(NumberFormatException error){
             forgetGoalDialog.setVisible(true);
         }
+        try {
+            //System.out.println("response");
+            ValueRange requestBody = new ValueRange().setValues(toSheets(goals.get(currentGoal), currentUser));
+            Sheets.Spreadsheets.Values.Append request = service.spreadsheets().values().append(spreadsheetId, "A3:N", requestBody);
+            request.setValueInputOption("RAW");
+            request.setInsertDataOption("INSERT_ROWS");
+            request.execute();
+        } catch(Exception e) {
+        }
+            
+            goals.remove(currentGoal);
+            repeatingGoalDialog.setVisible(false);
         setGoalField();
         
     }//GEN-LAST:event_finalizeRepeatingGoalButtonActionPerformed
@@ -1716,22 +1726,8 @@ public class Menu extends javax.swing.JFrame {
         if(goals.size() > 7){
             goals.remove(0);
         }
-        if(dateValidater(singleGoalStartDate)){
-            createSingleGoalDialog.setVisible(false);
-        } else {
-            forgetGoalDialog.setVisible(true);
-        }
         
-        try {
-            goals.get(currentGoal).documentGoal(repeatingGoalReflection.getText(), repeatingGoalStepsTaken.getText(), getRepeatingGoalLearningOutcomes(), Float.parseFloat(repeatingGoalCreativeHours.getText()), Float.parseFloat(repeatingGoalActiveHours.getText()), Float.parseFloat(repeatingGoalServiceHours.getText()));
-            resetGoalField(currentGoal);
-            
-            
-            repeatingGoalDialog.setVisible(false);
-        } catch(NumberFormatException error){
-            forgetGoalDialog.setVisible(true);
-        }
-        System.out.println("I did the thing");
+        createSingleGoalDialog.setVisible(false);
         setGoalField();
     }//GEN-LAST:event_createSingleGoalButtonActionPerformed
 
@@ -1834,8 +1830,87 @@ public class Menu extends javax.swing.JFrame {
 
     private void formWindowActivated(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowActivated
         // TODO add your handling code here:
-        System.out.println("Opened");
+        try{
+            if(!didUserUpdate){
+                //Get Likely FirstName, LastName, and ID
+                ValueRange possibleFirstName = service.spreadsheets().values().get(spreadsheetId, "Goals!B3:B").execute();
+                List<List<Object>> firstNames = possibleFirstName.getValues();
+                Object firstName = firstNames.get(firstNames.size() - 1);
+                String userFirstName = firstName.toString().substring(1, firstName.toString().length() - 1);
+                if(currentUser.getFirstName().equals("")){
+                    currentUser.setFirstName(userFirstName);
+                }
+
+                ValueRange possibleLastName = service.spreadsheets().values().get(spreadsheetId, "Goals!C3:C").execute();
+                List<List<Object>> lastNames = possibleLastName.getValues();
+                Object lastName = lastNames.get(lastNames.size() - 1);
+                String userLastName = lastName.toString().substring(1, lastName.toString().length() - 1);
+                if(currentUser.getLastName().equals("")){
+                    currentUser.setLastName(userLastName);
+                }
+
+                ValueRange possibleID = service.spreadsheets().values().get(spreadsheetId, "Goals!D3:D").execute();
+                List<List<Object>> ids = possibleID.getValues();
+                Object id = ids.get(ids.size() - 1);
+                String userID = id.toString().substring(1, id.toString().length() - 1);
+                if(currentUser.getID().equals("")){
+                    currentUser.setID(userID);
+                }
+                
+                System.out.println("a");
+                ValueRange response = service.spreadsheets().values().get(spreadsheetId, "Current Goals!A2:E").execute();
+                List<List<Object>> currentGoals = response.getValues();
+                try{
+                    for(List row : currentGoals){
+                        currentGoal++;
+                        System.out.println(currentGoal);
+                        if(row.size() <  5){
+                            RepeatedGoal newGoal = new RepeatedGoal(row.get(0).toString(), df.parse(row.get(1).toString()), df.parse(row.get(2).toString()));
+                            goals.add(newGoal);
+                            if(goals.size() > 7){
+                                goals.remove(0);
+                            }
+                        } else {
+                            SingleGoal newGoal = new SingleGoal((row.get(0).toString()), df.parse(row.get(1).toString()));
+                            goals.add(newGoal);
+                            if(goals.size() > 7){
+                                goals.remove(0);
+                            }
+                        }
+                    }
+                } catch(NullPointerException e){
+                    System.out.println(e);
+                }
+                
+                setGoalField();
+                BatchClearValuesRequest requestBody = new BatchClearValuesRequest();
+                List<String> clearRange = new ArrayList<String>();
+                clearRange.add("Current Goals!A2:E");
+                requestBody.setRanges(clearRange);
+                Sheets.Spreadsheets.Values.BatchClear request = service.spreadsheets().values().batchClear(spreadsheetId, requestBody);
+                request.execute();
+                didUserUpdate = true;
+            }
+        } catch(Exception e){
+            System.out.println(e);
+        }
     }//GEN-LAST:event_formWindowActivated
+
+    private void formWindowClosing(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosing
+        // TODO add your handling code here:
+        for(Goal goal : goals){
+            try {
+                ValueRange requestBody = new ValueRange().setValues(toCurrentGoalsSheets(goals.get(currentGoal), currentUser));
+                currentGoal--;
+                Sheets.Spreadsheets.Values.Append request = service.spreadsheets().values().append(spreadsheetId, "Current Goals!A2:E", requestBody);
+                request.setValueInputOption("RAW");
+                request.setInsertDataOption("INSERT_ROWS");
+                AppendValuesResponse response = request.execute();
+            } catch(Exception e) {
+                System.out.println(e);
+            }
+        }
+    }//GEN-LAST:event_formWindowClosing
     String getUser(User currentUser){
         return currentUser.getFirstName() + " " + currentUser.getLastName();
     }
@@ -1995,12 +2070,13 @@ public class Menu extends javax.swing.JFrame {
         endDateString += "/" + Integer.toString(endDate.getMonth());
         endDateString += "/" + Integer.toString(endDate.getYear() + 1900);
         goalParts[0] = endDateString;
-        
+
         Date startDate = goal.getStartDate();
         String startDateString = Integer.toString(startDate.getDate());
         startDateString += "/" + Integer.toString(startDate.getMonth());
         startDateString += "/" + Integer.toString(startDate.getYear() + 1900);
         goalParts[5] = startDateString + " - " + endDateString;
+        
         //User Stuff
         goalParts[1] = currentUser.getFirstName();
         
@@ -2014,8 +2090,8 @@ public class Menu extends javax.swing.JFrame {
         for(String outcome : goal.getLearningOutcomes()) {
             allLearningOutcomes += outcome + ", ";
         }
-        if(allLearningOutcomes.length() > 2){
-            allLearningOutcomes = allLearningOutcomes.substring(0, allLearningOutcomes.length() - 2);
+        if(allLearningOutcomes.length() > 7){
+            allLearningOutcomes = allLearningOutcomes.substring(6, allLearningOutcomes.length() - 2);
         } else {
             allLearningOutcomes = "";
         }
@@ -2023,28 +2099,60 @@ public class Menu extends javax.swing.JFrame {
         
         String didCAS = new String();
         HashMap<String, Float> casHours = goal.getHoursCAS();
-        if(casHours.get("Creative Hours") != 0){
+        if(casHours.get("Creative Hours") != 0.0){
             didCAS += "Creative, ";
             goalParts[11] = Float.toString(casHours.get("Creative Hours"));
         }
-        if(casHours.get("Active Hours") != 0){
+        if(casHours.get("Active Hours") != 0.0){
             didCAS += "Active, ";
             goalParts[12] = Float.toString(casHours.get("Active Hours"));
         }
-        if(casHours.get("Service Hours") != 0){
+        if(casHours.get("Service Hours") != 0.0){
             didCAS += "Service, ";
             goalParts[13] = Float.toString(casHours.get("Service Hours"));
+        } else {
         }
-        if(allLearningOutcomes.length() > 2){
+        
+        if(didCAS.length()> 3){
             didCAS = didCAS.substring(0, didCAS.length() - 2);
         } else {
-            allLearningOutcomes = "";
+            didCAS = "";
         }
         goalParts[7] = didCAS;
         
         goalParts[8] = goal.getSteps();
         goalParts[9] = goal.getReflection();
-        goalParts[10] = goal.getProject() || goal.getProject() ? "✓" : "";
+        goalParts[10] = goal.getProject() ? "x" : "";
+        List<List<Object>> goalPartsList = new ArrayList<List<Object>>();
+        List<Object> goalPartsListInner = new ArrayList<Object>(Arrays.asList(goalParts));
+        goalPartsList.add(goalPartsListInner);
+        return goalPartsList;
+    }
+    List<List<Object>> toCurrentGoalsSheets(Goal goal, User currentUser){
+        String[] goalParts = new String[5];
+        goalParts[0] = goal.getTitle();
+        //The Date
+        try {
+            Date endDate = goal.getEndDate();
+            String endDateString = Integer.toString(endDate.getDate());
+            endDateString += "/" + Integer.toString(endDate.getMonth());
+            endDateString += "/" + Integer.toString(endDate.getYear() + 1900);
+            goalParts[2] = endDateString;
+        } catch(NullPointerException e){
+            goalParts[2] = "";
+        }
+        try {
+            Date startDate = goal.getStartDate();
+            String startDateString = Integer.toString(startDate.getDate());
+            startDateString += "/" + Integer.toString(startDate.getMonth());
+            startDateString += "/" + Integer.toString(startDate.getYear() + 1900);
+            goalParts[1] = startDateString;
+        } catch(NullPointerException e){
+            goalParts[1] = "";
+        }
+        
+        goalParts[3] = goal.getProject() ? "x" : "";
+        goalParts[4] = goal.getClass().equals(testSingleGoal.getClass()) ? "x" : "";
         
         List<List<Object>> goalPartsList = new ArrayList<List<Object>>();
         //https://stackoverflow.com/questions/35990770/string-cannot-be-converted-to-arrayliststring-error
@@ -2064,6 +2172,21 @@ public class Menu extends javax.swing.JFrame {
             return false;
         }
         return true;
+    }
+    boolean compareDate(Date dateA, Date dateB){
+        boolean isLess = false;
+        if(dateA.getYear() < dateB.getYear()){
+            isLess = true;
+        } else if (dateA.getYear() == dateB.getYear()){
+            if(dateA.getMonth() < dateB.getMonth()) {
+                isLess = true;
+            } else if (dateA.getMonth() == dateB.getMonth()) {
+                if(dateA.getDate() < dateB.getDate()){
+                    isLess = true;
+                }
+            }
+        }
+        return isLess;
     }
     private static Credential getCredentials(final NetHttpTransport HTTP_TRANSPORT) throws IOException {
         // Load client secrets.

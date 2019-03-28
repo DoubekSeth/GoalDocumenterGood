@@ -35,6 +35,6 @@ public class RepeatedGoal extends Goal{
         }
         hoursCAS.put("Creative Hours", creativeHours);
         hoursCAS.put("Active Hours", activeHours);
-        hoursCAS.put("serviceHours", serviceHours);
+        hoursCAS.put("Service Hours", serviceHours);
     }
 }
