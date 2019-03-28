@@ -1863,7 +1863,6 @@ public class Menu extends javax.swing.JFrame {
                 try{
                     for(List row : currentGoals){
                         currentGoal++;
-                        System.out.println(currentGoal);
                         if(row.size() <  5){
                             RepeatedGoal newGoal = new RepeatedGoal(row.get(0).toString(), df.parse(row.get(1).toString()), df.parse(row.get(2).toString()));
                             goals.add(newGoal);
@@ -1892,7 +1891,6 @@ public class Menu extends javax.swing.JFrame {
                 didUserUpdate = true;
             }
         } catch(Exception e){
-            System.out.println(e);
         }
     }//GEN-LAST:event_formWindowActivated
 
@@ -1911,9 +1909,11 @@ public class Menu extends javax.swing.JFrame {
             }
         }
     }//GEN-LAST:event_formWindowClosing
+    
     String getUser(User currentUser){
         return currentUser.getFirstName() + " " + currentUser.getLastName();
     }
+    
     String[] getRepeatingGoalLearningOutcomes() {
         String[] learningOutcomes = new String[7];
         if(repeatingGoalStrengthGrowthButton.isSelected()){
@@ -2128,6 +2128,7 @@ public class Menu extends javax.swing.JFrame {
         goalPartsList.add(goalPartsListInner);
         return goalPartsList;
     }
+    
     List<List<Object>> toCurrentGoalsSheets(Goal goal, User currentUser){
         String[] goalParts = new String[5];
         goalParts[0] = goal.getTitle();
@@ -2160,6 +2161,7 @@ public class Menu extends javax.swing.JFrame {
         goalPartsList.add(goalPartsListInner);
         return goalPartsList;
     }
+    
     //https://stackoverflow.com/questions/226910/how-to-sanity-check-a-date-in-java
     boolean dateValidater(Date in){
         Calendar myCalendar = Calendar.getInstance();
@@ -2173,6 +2175,7 @@ public class Menu extends javax.swing.JFrame {
         }
         return true;
     }
+    
     boolean compareDate(Date dateA, Date dateB){
         boolean isLess = false;
         if(dateA.getYear() < dateB.getYear()){
@@ -2188,6 +2191,7 @@ public class Menu extends javax.swing.JFrame {
         }
         return isLess;
     }
+    
     private static Credential getCredentials(final NetHttpTransport HTTP_TRANSPORT) throws IOException {
         // Load client secrets.
         InputStream in = Menu.class.getResourceAsStream(CREDENTIALS_FILE_PATH);
